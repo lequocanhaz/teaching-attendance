@@ -1,0 +1,9 @@
+{
+  "name": "Quản lý buổi dạy",
+  "short_name": "Buổi dạy",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f7f8fa",
+  "theme_color": "#ffffff",
+  "icons": []
+}
