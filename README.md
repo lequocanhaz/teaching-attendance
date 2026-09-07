@@ -1,76 +1,41 @@
-# Teaching Attendance – Quản lý buổi dạy
+# Teaching Attendance V3 – Lịch cá nhân & chấm công
 
-Web tĩnh chạy tốt trên GitHub Pages, tập trung vào:
-- Chấm công buổi dạy.
-- Đổi lịch riêng một buổi.
-- Sửa lịch cố định.
-- Xem lịch sử theo tháng/trạng thái.
-- Sao lưu/khôi phục JSON.
-- Có thể đồng bộ nhiều thiết bị bằng Supabase.
+Bản V3 tập trung vào sử dụng lâu dài:
 
-## Lịch mẫu đã có sẵn
+- Đồng hồ thời gian thực ngay trên web.
+- Hiển thị trạng thái `Đang diễn ra / Sắp tới / Đã qua` theo giờ hiện tại.
+- Lịch dạy thêm là lịch cố định và có chấm công.
+- Lịch học đại học và kiến tập/thực tập được lưu theo **ngày cụ thể**, vì vậy mỗi tuần có thể khác nhau.
+- Có nút chuyển tuần và xem lại mọi tuần cũ.
+- Có nút `Sao chép lịch học/KT từ tuần trước` để tạo tuần mới nhanh rồi sửa các buổi thay đổi.
+- Khi sửa lịch dạy cố định, hệ thống tạo phiên bản mới từ ngày áp dụng để không làm sai lịch sử cũ.
+- Supabase hỗ trợ lưu online và đồng bộ thay đổi giữa nhiều thiết bị.
 
-- Nam – VL12: Thứ 3, Thứ 7, Chủ nhật · 09:00–10:30
-- Đức – VL12: Thứ 3, Thứ 5, Thứ 7 · 19:30–21:00
-- Phát – VL10: Thứ 6 · 09:30–11:00; Chủ nhật · 14:00–15:30
-- Đạt – VL10: Thứ 2, Thứ 6 · 18:00–19:30
-- Triết – VL11: Thứ 4 · 16:00–17:30; Thứ 6 · 15:00–16:30
+## Cách dùng lịch tuần
 
-## 1. Chạy ngay, chưa cần Supabase
+1. Vào `Lịch tuần`.
+2. Dùng mũi tên để chuyển tuần hoặc chọn một ngày ở ô bên phải.
+3. `+ Lịch học / KT-TT` để thêm lịch riêng của đúng tuần đó.
+4. Khi sang tuần mới, có thể bấm `Sao chép lịch học/KT từ tuần trước`, sau đó sửa/xóa/thêm các buổi khác.
+5. Tuần cũ không bị ghi đè; quay lại tuần cũ bằng mũi tên để xem lịch sử.
 
-Chỉ cần mở `index.html`. Dữ liệu được lưu vào localStorage của trình duyệt.
+## Supabase V3
 
-Lưu ý: localStorage chỉ phù hợp để thử nghiệm hoặc dùng trên một thiết bị. Nếu xóa dữ liệu trình duyệt thì có thể mất dữ liệu.
+Nếu chưa dùng Supabase thì web chạy ngay bằng localStorage.
 
-## 2. Đưa lên GitHub Pages
+Nếu đã hoặc sắp kết nối Supabase:
 
-1. Tạo repository mới, ví dụ `teaching-attendance`.
-2. Upload toàn bộ file trong thư mục này lên nhánh `main`.
-3. Vào GitHub > Settings > Pages.
-4. Chọn `Deploy from a branch`.
-5. Chọn branch `main`, folder `/ (root)`.
-6. Save.
+1. Mở Supabase > SQL Editor.
+2. Chạy **toàn bộ** file `supabase.sql` bản V3.
+3. Trong `config.js` điền Project URL và Publishable/Anon key.
+4. Không bao giờ đưa `service_role` hoặc Secret key vào GitHub.
 
-Sau vài phút web sẽ có địa chỉ:
-`https://TEN_GITHUB.github.io/teaching-attendance/`
+V3 tạo thêm bảng `weekly_events` để lưu lịch học/kiến tập theo ngày và bật Realtime cho các bảng.
 
-## 3. Dùng lâu dài với Supabase
+## Backup
 
-### Bước A – Tạo database
-1. Tạo project tại Supabase.
-2. Mở `SQL Editor`.
-3. Copy toàn bộ nội dung file `supabase.sql` và Run.
+Vào `Cài đặt > Xuất JSON`. File backup V3 chứa:
 
-### Bước B – Lấy URL và Anon Key
-Supabase > Project Settings > API.
-
-Mở `config.js` và điền:
-
-```js
-window.APP_CONFIG = {
-  SUPABASE_URL: "https://....supabase.co",
-  SUPABASE_ANON_KEY: "...."
-};
-```
-
-Anon key có thể đặt ở frontend. KHÔNG đặt `service_role` key vào GitHub.
-
-### Bước C – Đăng nhập
-Sau khi tải lại web:
-- Vào `Cài đặt`.
-- Chọn `Tạo tài khoản`.
-- Nếu Supabase bật xác nhận email, mở email xác nhận trước khi đăng nhập.
-- Sau khi đăng nhập, dữ liệu mới sẽ lưu lên Supabase.
-
-## 4. Quy tắc dữ liệu
-
-- `Thời khóa biểu` = lịch cố định hàng tuần.
-- `Đổi lịch buổi này` = chỉ thay đổi đúng buổi đang chọn, không ảnh hưởng lịch cố định.
-- Chấm công tạo bản ghi trong lịch sử.
-- Xóa lịch cố định không xóa lịch sử cũ.
-
-## 5. Sao lưu
-
-Vào `Cài đặt > Xuất JSON` để tải file sao lưu. Có thể nhập lại bằng `Nhập JSON`.
-
-Nên sao lưu định kỳ, đặc biệt trước khi chỉnh sửa database.
+- `schedules`: lịch dạy cố định và các phiên bản lịch cũ.
+- `sessions`: lịch sử chấm công/đổi buổi dạy.
+- `weekly_events`: lịch học và kiến tập/thực tập từng tuần.
