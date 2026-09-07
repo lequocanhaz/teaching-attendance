@@ -34,7 +34,10 @@
     <main>
       <section id="view-today" class="view active">
         <div class="section-head">
-          <div><h2>Lịch trong ngày</h2><p id="todayLabel" class="muted"></p></div>
+          <div>
+            <h2>Lịch trong ngày</h2>
+            <p id="todayLabel" class="muted"></p>
+          </div>
           <div class="date-nav">
             <button id="prevDay" class="ghost small" aria-label="Ngày trước">←</button>
             <button id="todayBtn" class="ghost">Hôm nay</button>
@@ -50,11 +53,12 @@
         <div class="section-head schedule-head">
           <div>
             <h2>Lịch theo tuần</h2>
-            <p class="muted">Lịch học và kiến tập/thực tập được lưu theo từng ngày nên mỗi tuần có thể hoàn toàn khác nhau.</p>
+            <p class="muted">Lịch dạy và các môn học cố định tự lặp ở các tuần sau. Nếu một tuần không học, chỉ cần chọn “Bỏ tuần này”. Kiến tập/thực tập có thể thêm theo ngày khi có lịch.</p>
           </div>
           <div class="schedule-actions">
             <button id="addTeachingBtn" class="ghost">+ Lịch dạy cố định</button>
-            <button id="addEventBtn" class="primary">+ Lịch học / KT-TT</button>
+            <button id="addUniversityBtn" class="ghost">+ Môn học cố định</button>
+            <button id="addEventBtn" class="primary">+ Lịch phát sinh / KT-TT</button>
           </div>
         </div>
 
@@ -64,9 +68,12 @@
             <button id="currentWeekBtn" class="ghost">Tuần này</button>
             <button id="nextWeek" class="ghost small" aria-label="Tuần sau">→</button>
           </div>
-          <div class="week-title-wrap"><strong id="weekLabel"></strong><span id="saveStatus" class="save-status">Tự động lưu</span></div>
+          <div class="week-title-wrap">
+            <strong id="weekLabel"></strong>
+            <span id="saveStatus" class="save-status">Tự động lưu</span>
+          </div>
           <div class="week-tools">
-            <button id="copyPrevWeekBtn" class="ghost">Sao chép lịch học/KT từ tuần trước</button>
+            <button id="copyPrevWeekBtn" class="ghost">Sao chép lịch phát sinh/KT từ tuần trước</button>
             <input id="jumpWeekDate" type="date" title="Chọn một ngày trong tuần cần xem" />
           </div>
         </div>
@@ -79,70 +86,176 @@
         </div>
         <div class="legend">
           <span><i class="dot teaching"></i>Dạy thêm cố định</span>
-          <span><i class="dot university"></i>Lịch học theo tuần</span>
-          <span><i class="dot practicum"></i>Kiến tập / Thực tập theo tuần</span>
+          <span><i class="dot university"></i>Lịch học cố định (có thể bỏ riêng từng tuần)</span>
+          <span><i class="dot practicum"></i>Kiến tập / Thực tập theo ngày</span>
           <span><i class="dot now"></i>Đang diễn ra</span>
         </div>
+        <div id="hiddenExceptions"></div>
         <div id="weeklyGrid" class="weekly-grid"></div>
       </section>
 
       <section id="view-history" class="view">
         <div class="section-head">
-          <div><h2>Lịch sử chấm công</h2><p class="muted">Chỉ các ca dạy thêm được tính vào chấm công. Lịch học và kiến tập được lưu riêng trong từng tuần ở mục Lịch tuần.</p></div>
+          <div>
+            <h2>Lịch sử chấm công</h2>
+            <p class="muted">Chỉ các ca dạy thêm được tính vào chấm công. Lịch học cố định vẫn xuất hiện ở các tuần sau; các tuần đã bỏ được lưu lại như ngoại lệ. Kiến tập/thực tập được lưu theo ngày.</p>
+          </div>
           <div class="filters">
             <input id="historyMonth" type="month" />
             <select id="historyStatus">
-              <option value="">Tất cả trạng thái</option><option value="taught">Đã dạy</option><option value="student_absent">Học sinh nghỉ</option><option value="teacher_absent">Giáo viên nghỉ</option><option value="makeup">Dạy bù</option><option value="cancelled">Hủy buổi</option>
+              <option value="">Tất cả trạng thái</option>
+              <option value="taught">Đã dạy</option>
+              <option value="student_absent">Học sinh nghỉ</option>
+              <option value="teacher_absent">Giáo viên nghỉ</option>
+              <option value="makeup">Dạy bù</option>
+              <option value="cancelled">Hủy buổi</option>
             </select>
           </div>
         </div>
         <div id="historyStats" class="summary-grid"></div>
-        <div class="table-wrap"><table><thead><tr><th>Ngày</th><th>Học sinh</th><th>Ca</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead><tbody id="historyBody"></tbody></table></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Ngày</th><th>Học sinh</th><th>Ca</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </div>
       </section>
 
       <section id="view-settings" class="view">
         <div class="settings-grid">
-          <article class="panel"><h2>Đồng bộ Supabase</h2><p class="muted">Khi kết nối Supabase, dữ liệu được lưu online và các thay đổi có thể đồng bộ giữa nhiều thiết bị. Trước khi dùng bản V3 với Supabase, hãy chạy lại file <code>supabase.sql</code>.</p><div id="authArea"></div></article>
-          <article class="panel"><h2>Sao lưu dữ liệu</h2><p class="muted">Xuất lịch dạy, lịch từng tuần và lịch sử chấm công thành JSON.</p><div class="row gap"><button id="exportBtn" class="primary">Xuất JSON</button><label class="ghost file-btn">Nhập JSON<input id="importInput" type="file" accept="application/json" hidden /></label></div></article>
-          <article class="panel"><h2>Cách lưu lịch theo tuần</h2><p class="muted">Mỗi lịch học/kiến tập có một ngày cụ thể. Khi sang tuần mới, lịch tuần cũ vẫn giữ nguyên. Bạn có thể tự nhập tuần mới hoặc sao chép tuần trước rồi sửa lại.</p></article>
-          <article class="panel danger-panel"><h2>Khôi phục lịch dạy mẫu</h2><p class="muted">Chỉ bổ sung lịch dạy Nam, Đức, Phát, Đạt và Triết nếu chưa có. Không tự tạo lịch học/kiến tập cho tuần mới.</p><button id="seedBtn" class="ghost">Bổ sung lịch dạy mẫu</button></article>
+          <article class="panel">
+            <h2>Đồng bộ Supabase</h2>
+            <p class="muted">Khi kết nối Supabase, dữ liệu được lưu online và các thay đổi có thể đồng bộ giữa nhiều thiết bị. Trước khi dùng bản V4 với Supabase, hãy chạy lại file <code>supabase.sql</code>.</p>
+            <div id="authArea"></div>
+          </article>
+          <article class="panel">
+            <h2>Sao lưu dữ liệu</h2>
+            <p class="muted">Xuất lịch dạy, lịch học cố định, các ngoại lệ từng tuần, kiến tập/thực tập và lịch sử chấm công thành JSON.</p>
+            <div class="row gap">
+              <button id="exportBtn" class="primary">Xuất JSON</button>
+              <label class="ghost file-btn">Nhập JSON<input id="importInput" type="file" accept="application/json" hidden /></label>
+            </div>
+          </article>
+          <article class="panel">
+            <h2>Cách lưu lịch theo tuần</h2>
+            <p class="muted">Các môn học cố định tự lặp sang tuần mới. Nếu tuần nào không học, chọn “Bỏ tuần này”; thao tác đó không ảnh hưởng các tuần sau. Kiến tập/thực tập và lịch phát sinh vẫn nhập theo ngày cụ thể.</p>
+          </article>
+          <article class="panel danger-panel">
+            <h2>Khôi phục lịch mẫu</h2>
+            <p class="muted">Bổ sung lịch dạy hiện tại và 4 môn học đại học nếu còn thiếu.</p>
+            <button id="seedBtn" class="ghost">Bổ sung lịch mẫu</button>
+          </article>
         </div>
       </section>
     </main>
   </div>
 
-  <dialog id="teachingDialog"><form id="teachingForm" method="dialog" class="modal-form">
-    <div class="modal-head"><h3 id="teachingDialogTitle">Thêm lịch dạy cố định</h3><button type="button" class="icon-btn" data-close-dialog="teachingDialog">×</button></div>
-    <input id="teachingId" type="hidden" />
-    <label>Học sinh<input id="teachingStudent" required placeholder="Ví dụ: Nam" /></label>
-    <label>Môn / lớp<input id="teachingSubject" required placeholder="Ví dụ: VL12" /></label>
-    <label>Địa điểm (không bắt buộc)<input id="teachingLocation" placeholder="Ví dụ: Tại nhà / Online" /></label>
-    <label>Thứ<select id="teachingWeekday" required><option value="1">Thứ 2</option><option value="2">Thứ 3</option><option value="3">Thứ 4</option><option value="4">Thứ 5</option><option value="5">Thứ 6</option><option value="6">Thứ 7</option><option value="7">Chủ nhật</option></select></label>
-    <div class="two-cols"><label>Bắt đầu<input id="teachingStart" type="time" required /></label><label>Kết thúc<input id="teachingEnd" type="time" required /></label></div>
-    <label>Áp dụng từ ngày<input id="teachingEffectiveDate" type="date" required /></label>
-    <p class="form-hint">Khi sửa lịch, hệ thống sẽ giữ lịch cũ trước ngày này và tạo lịch mới từ ngày này để không làm sai lịch sử các tuần trước.</p>
-    <div class="modal-actions"><button type="button" class="ghost" data-close-dialog="teachingDialog">Hủy</button><button type="submit" class="primary">Lưu lịch</button></div>
-  </form></dialog>
+  <dialog id="teachingDialog">
+    <form id="teachingForm" method="dialog" class="modal-form">
+      <div class="modal-head">
+        <h3 id="teachingDialogTitle">Thêm lịch dạy cố định</h3>
+        <button type="button" class="icon-btn" data-close-dialog="teachingDialog">×</button>
+      </div>
+      <input id="teachingId" type="hidden" />
+      <label>Học sinh<input id="teachingStudent" required placeholder="Ví dụ: Nam" /></label>
+      <label>Môn / lớp<input id="teachingSubject" required placeholder="Ví dụ: VL12" /></label>
+      <label>Địa điểm (không bắt buộc)<input id="teachingLocation" placeholder="Ví dụ: Tại nhà / Online" /></label>
+      <label>Thứ
+        <select id="teachingWeekday" required>
+          <option value="1">Thứ 2</option><option value="2">Thứ 3</option><option value="3">Thứ 4</option>
+          <option value="4">Thứ 5</option><option value="5">Thứ 6</option><option value="6">Thứ 7</option><option value="7">Chủ nhật</option>
+        </select>
+      </label>
+      <div class="two-cols">
+        <label>Bắt đầu<input id="teachingStart" type="time" required /></label>
+        <label>Kết thúc<input id="teachingEnd" type="time" required /></label>
+      </div>
+      <label>Áp dụng từ ngày<input id="teachingEffectiveDate" type="date" required /></label>
+      <p class="form-hint">Khi sửa lịch, hệ thống sẽ giữ lịch cũ trước ngày này và tạo lịch mới từ ngày này để không làm sai lịch sử các tuần trước.</p>
+      <div class="modal-actions">
+        <button type="button" class="ghost" data-close-dialog="teachingDialog">Hủy</button>
+        <button type="submit" class="primary">Lưu lịch</button>
+      </div>
+    </form>
+  </dialog>
 
-  <dialog id="eventDialog"><form id="eventForm" method="dialog" class="modal-form">
-    <div class="modal-head"><h3 id="eventDialogTitle">Thêm lịch theo tuần</h3><button type="button" class="icon-btn" data-close-dialog="eventDialog">×</button></div>
-    <input id="eventId" type="hidden" />
-    <label>Loại lịch<select id="eventType" required><option value="university">Lịch học đại học</option><option value="practicum">Kiến tập / Thực tập</option></select></label>
-    <label>Tiêu đề<input id="eventTitle" required placeholder="Ví dụ: Vật lí thống kê / Kiến tập tại THPT..." /></label>
-    <label>Mô tả<input id="eventDetails" placeholder="Ví dụ: Tiết 4–6 / Dự giờ Vật lí 11" /></label>
-    <label>Địa điểm / phòng<input id="eventLocation" placeholder="Ví dụ: A1-101 / THPT ..." /></label>
-    <label>Ngày<input id="eventDate" type="date" required /></label>
-    <div class="two-cols"><label>Bắt đầu<input id="eventStart" type="time" required /></label><label>Kết thúc<input id="eventEnd" type="time" required /></label></div>
-    <label>Ghi chú<textarea id="eventNote" rows="3" placeholder="Không bắt buộc"></textarea></label>
-    <div class="modal-actions"><button type="button" class="ghost" data-close-dialog="eventDialog">Hủy</button><button type="submit" class="primary">Lưu vào tuần</button></div>
-  </form></dialog>
+  <dialog id="universityDialog">
+    <form id="universityForm" method="dialog" class="modal-form">
+      <div class="modal-head">
+        <h3 id="universityDialogTitle">Thêm môn học cố định</h3>
+        <button type="button" class="icon-btn" data-close-dialog="universityDialog">×</button>
+      </div>
+      <input id="universityId" type="hidden" />
+      <label>Tên môn học<input id="universityTitle" required placeholder="Ví dụ: Vật lí thống kê" /></label>
+      <label>Mô tả (không bắt buộc)<input id="universityDetails" placeholder="Ví dụ: Tiết 4–6" /></label>
+      <label>Phòng / địa điểm<input id="universityLocation" placeholder="Ví dụ: A1-101" /></label>
+      <label>Thứ
+        <select id="universityWeekday" required>
+          <option value="1">Thứ 2</option><option value="2">Thứ 3</option><option value="3">Thứ 4</option>
+          <option value="4">Thứ 5</option><option value="5">Thứ 6</option><option value="6">Thứ 7</option><option value="7">Chủ nhật</option>
+        </select>
+      </label>
+      <div class="two-cols">
+        <label>Bắt đầu<input id="universityStart" type="time" required /></label>
+        <label>Kết thúc<input id="universityEnd" type="time" required /></label>
+      </div>
+      <label>Áp dụng từ ngày<input id="universityEffectiveDate" type="date" required /></label>
+      <p class="form-hint">Môn học sẽ tự xuất hiện ở các tuần sau. Nếu tuần nào nghỉ, dùng nút “Bỏ tuần này” trên lịch tuần.</p>
+      <div class="modal-actions">
+        <button type="button" class="ghost" data-close-dialog="universityDialog">Hủy</button>
+        <button type="submit" class="primary">Lưu môn học</button>
+      </div>
+    </form>
+  </dialog>
 
-  <dialog id="rescheduleDialog"><form id="rescheduleForm" method="dialog" class="modal-form">
-    <div class="modal-head"><h3>Đổi lịch buổi dạy này</h3><button type="button" class="icon-btn" data-close-dialog="rescheduleDialog">×</button></div><input id="rescheduleKey" type="hidden" />
-    <label>Ngày mới<input id="rescheduleDate" type="date" required /></label><div class="two-cols"><label>Bắt đầu<input id="rescheduleStart" type="time" required /></label><label>Kết thúc<input id="rescheduleEnd" type="time" required /></label></div><label>Ghi chú<textarea id="rescheduleNote" rows="3" placeholder="Ví dụ: Chuyển lịch theo yêu cầu học sinh"></textarea></label><div class="modal-actions"><button type="button" class="ghost" data-close-dialog="rescheduleDialog">Hủy</button><button type="submit" class="primary">Đổi lịch</button></div>
-  </form></dialog>
+  <dialog id="eventDialog">
+    <form id="eventForm" method="dialog" class="modal-form">
+      <div class="modal-head">
+        <h3 id="eventDialogTitle">Thêm lịch phát sinh / KT-TT</h3>
+        <button type="button" class="icon-btn" data-close-dialog="eventDialog">×</button>
+      </div>
+      <input id="eventId" type="hidden" />
+      <label>Loại lịch
+        <select id="eventType" required>
+          <option value="university">Lịch học phát sinh / đổi buổi</option>
+          <option value="practicum">Kiến tập / Thực tập</option>
+        </select>
+      </label>
+      <label>Tiêu đề<input id="eventTitle" required placeholder="Ví dụ: Vật lí thống kê / Kiến tập tại THPT..." /></label>
+      <label>Mô tả<input id="eventDetails" placeholder="Ví dụ: Tiết 4–6 / Dự giờ Vật lí 11" /></label>
+      <label>Địa điểm / phòng<input id="eventLocation" placeholder="Ví dụ: A1-101 / THPT ..." /></label>
+      <label>Ngày<input id="eventDate" type="date" required /></label>
+      <div class="two-cols">
+        <label>Bắt đầu<input id="eventStart" type="time" required /></label>
+        <label>Kết thúc<input id="eventEnd" type="time" required /></label>
+      </div>
+      <label>Ghi chú<textarea id="eventNote" rows="3" placeholder="Không bắt buộc"></textarea></label>
+      <div class="modal-actions">
+        <button type="button" class="ghost" data-close-dialog="eventDialog">Hủy</button>
+        <button type="submit" class="primary">Lưu lịch</button>
+      </div>
+    </form>
+  </dialog>
 
-  <dialog id="noteDialog"><form id="noteForm" method="dialog" class="modal-form"><div class="modal-head"><h3>Ghi chú buổi dạy</h3><button type="button" class="icon-btn" data-close-dialog="noteDialog">×</button></div><input id="noteKey" type="hidden" /><label>Ghi chú<textarea id="sessionNote" rows="4" placeholder="Nội dung ngắn gọn..."></textarea></label><div class="modal-actions"><button type="button" class="ghost" data-close-dialog="noteDialog">Hủy</button><button type="submit" class="primary">Lưu ghi chú</button></div></form></dialog>
+  <dialog id="rescheduleDialog">
+    <form id="rescheduleForm" method="dialog" class="modal-form">
+      <div class="modal-head"><h3>Đổi lịch buổi dạy này</h3><button type="button" class="icon-btn" data-close-dialog="rescheduleDialog">×</button></div>
+      <input id="rescheduleKey" type="hidden" />
+      <label>Ngày mới<input id="rescheduleDate" type="date" required /></label>
+      <div class="two-cols"><label>Bắt đầu<input id="rescheduleStart" type="time" required /></label><label>Kết thúc<input id="rescheduleEnd" type="time" required /></label></div>
+      <label>Ghi chú<textarea id="rescheduleNote" rows="3" placeholder="Ví dụ: Chuyển lịch theo yêu cầu học sinh"></textarea></label>
+      <div class="modal-actions"><button type="button" class="ghost" data-close-dialog="rescheduleDialog">Hủy</button><button type="submit" class="primary">Đổi lịch</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="noteDialog">
+    <form id="noteForm" method="dialog" class="modal-form">
+      <div class="modal-head"><h3>Ghi chú buổi dạy</h3><button type="button" class="icon-btn" data-close-dialog="noteDialog">×</button></div>
+      <input id="noteKey" type="hidden" />
+      <label>Ghi chú<textarea id="sessionNote" rows="4" placeholder="Nội dung ngắn gọn..."></textarea></label>
+      <div class="modal-actions"><button type="button" class="ghost" data-close-dialog="noteDialog">Hủy</button><button type="submit" class="primary">Lưu ghi chú</button></div>
+    </form>
+  </dialog>
 
   <div id="toast" class="toast"></div>
   <script src="./config.js"></script>
