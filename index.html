@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#ffffff" />
-  <title>Quản lý buổi dạy</title>
+  <title>Lịch cá nhân & chấm công</title>
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
@@ -12,16 +12,16 @@
   <div class="app-shell">
     <header class="topbar">
       <div>
-        <p class="eyebrow">TEACHING ATTENDANCE</p>
-        <h1>Quản lý buổi dạy</h1>
+        <p class="eyebrow">PERSONAL SCHEDULE</p>
+        <h1>Lịch cá nhân & chấm công</h1>
       </div>
       <div id="cloudBadge" class="badge">Dữ liệu cục bộ</div>
     </header>
 
     <nav class="tabs" aria-label="Điều hướng">
       <button class="tab active" data-view="today">Hôm nay</button>
-      <button class="tab" data-view="schedule">Thời khóa biểu</button>
-      <button class="tab" data-view="history">Lịch sử</button>
+      <button class="tab" data-view="schedule">Lịch tuần</button>
+      <button class="tab" data-view="history">Chấm công</button>
       <button class="tab" data-view="settings">Cài đặt</button>
     </nav>
 
@@ -29,16 +29,15 @@
       <section id="view-today" class="view active">
         <div class="section-head">
           <div>
-            <h2>Buổi dạy trong ngày</h2>
+            <h2>Lịch trong ngày</h2>
             <p id="todayLabel" class="muted"></p>
           </div>
           <div class="date-nav">
-            <button id="prevDay" class="ghost small">←</button>
+            <button id="prevDay" class="ghost small" aria-label="Ngày trước">←</button>
             <input id="todayDate" type="date" />
-            <button id="nextDay" class="ghost small">→</button>
+            <button id="nextDay" class="ghost small" aria-label="Ngày sau">→</button>
           </div>
         </div>
-
         <div id="todaySummary" class="summary-grid"></div>
         <div id="todaySessions" class="session-list"></div>
       </section>
@@ -46,10 +45,21 @@
       <section id="view-schedule" class="view">
         <div class="section-head">
           <div>
-            <h2>Thời khóa biểu cố định</h2>
-            <p class="muted">Sửa lịch ở đây sẽ áp dụng cho các tuần sau.</p>
+            <h2>Lịch cố định</h2>
+            <p class="muted">Quản lý chung lịch dạy, lịch học và kiến tập/thực tập. Có thể giới hạn lịch theo ngày bắt đầu – kết thúc.</p>
           </div>
-          <button id="addScheduleBtn" class="primary">+ Thêm ca</button>
+          <button id="addScheduleBtn" class="primary">+ Thêm lịch</button>
+        </div>
+        <div class="schedule-toolbar">
+          <button class="filter-chip active" data-schedule-filter="all">Tất cả</button>
+          <button class="filter-chip" data-schedule-filter="teaching">Dạy thêm</button>
+          <button class="filter-chip" data-schedule-filter="university">Lịch học</button>
+          <button class="filter-chip" data-schedule-filter="practicum">Kiến tập / Thực tập</button>
+        </div>
+        <div class="legend">
+          <span><i class="dot teaching"></i>Dạy thêm</span>
+          <span><i class="dot university"></i>Lịch học</span>
+          <span><i class="dot practicum"></i>Kiến tập / Thực tập</span>
         </div>
         <div id="weeklyGrid" class="weekly-grid"></div>
       </section>
@@ -58,7 +68,7 @@
         <div class="section-head">
           <div>
             <h2>Lịch sử chấm công</h2>
-            <p class="muted">Chỉ hiển thị các buổi đã được ghi nhận.</p>
+            <p class="muted">Chỉ các ca <strong>dạy thêm</strong> mới được tính vào chấm công.</p>
           </div>
           <div class="filters">
             <input id="historyMonth" type="month" />
@@ -75,15 +85,7 @@
         <div id="historyStats" class="summary-grid"></div>
         <div class="table-wrap">
           <table>
-            <thead>
-              <tr>
-                <th>Ngày</th>
-                <th>Học sinh</th>
-                <th>Ca</th>
-                <th>Trạng thái</th>
-                <th>Ghi chú</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Ngày</th><th>Học sinh</th><th>Ca</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead>
             <tbody id="historyBody"></tbody>
           </table>
         </div>
@@ -93,28 +95,21 @@
         <div class="settings-grid">
           <article class="panel">
             <h2>Đồng bộ Supabase</h2>
-            <p class="muted">
-              Web vẫn dùng được ngay bằng dữ liệu cục bộ. Muốn dùng lâu dài trên nhiều thiết bị,
-              hãy điền Supabase URL và Anon Key trong <code>config.js</code>.
-            </p>
+            <p class="muted">Web dùng được ngay bằng dữ liệu cục bộ. Muốn đồng bộ nhiều thiết bị, điền Supabase URL và Publishable/Anon Key trong <code>config.js</code>.</p>
             <div id="authArea"></div>
           </article>
-
           <article class="panel">
             <h2>Sao lưu dữ liệu</h2>
-            <p class="muted">Xuất toàn bộ lịch cố định và lịch sử chấm công thành JSON.</p>
+            <p class="muted">Xuất toàn bộ lịch và lịch sử chấm công thành JSON.</p>
             <div class="row gap">
               <button id="exportBtn" class="primary">Xuất JSON</button>
-              <label class="ghost file-btn">Nhập JSON
-                <input id="importInput" type="file" accept="application/json" hidden />
-              </label>
+              <label class="ghost file-btn">Nhập JSON<input id="importInput" type="file" accept="application/json" hidden /></label>
             </div>
           </article>
-
           <article class="panel danger-panel">
             <h2>Khôi phục lịch mẫu</h2>
-            <p class="muted">Thêm lại lịch ban đầu của Nam, Đức, Phát, Đạt và Triết nếu lịch hiện tại đang trống.</p>
-            <button id="seedBtn" class="ghost">Thêm lịch mẫu</button>
+            <p class="muted">Chỉ thêm các lịch mẫu còn thiếu: lịch dạy hiện tại và 4 môn học ở trường.</p>
+            <button id="seedBtn" class="ghost">Bổ sung lịch mẫu</button>
           </article>
         </div>
       </section>
@@ -124,31 +119,41 @@
   <dialog id="scheduleDialog">
     <form id="scheduleForm" method="dialog" class="modal-form">
       <div class="modal-head">
-        <h3 id="scheduleDialogTitle">Thêm ca dạy</h3>
+        <h3 id="scheduleDialogTitle">Thêm lịch</h3>
         <button type="button" class="icon-btn" data-close-dialog="scheduleDialog">×</button>
       </div>
       <input id="scheduleId" type="hidden" />
-      <label>Học sinh
+      <label>Loại lịch
+        <select id="scheduleType" required>
+          <option value="teaching">Dạy thêm</option>
+          <option value="university">Lịch học đại học</option>
+          <option value="practicum">Kiến tập / Thực tập</option>
+        </select>
+      </label>
+      <label><span id="titleFieldLabel">Học sinh</span>
         <input id="studentName" required placeholder="Ví dụ: Nam" />
       </label>
-      <label>Môn / lớp
-        <input id="subjectName" required placeholder="Ví dụ: VL12" />
+      <label><span id="subjectFieldLabel">Môn / lớp</span>
+        <input id="subjectName" placeholder="Ví dụ: VL12" />
+      </label>
+      <label>Địa điểm / phòng
+        <input id="locationName" placeholder="Ví dụ: A5-404A hoặc THPT ..." />
       </label>
       <label>Thứ
         <select id="weekday" required>
-          <option value="1">Thứ 2</option>
-          <option value="2">Thứ 3</option>
-          <option value="3">Thứ 4</option>
-          <option value="4">Thứ 5</option>
-          <option value="5">Thứ 6</option>
-          <option value="6">Thứ 7</option>
-          <option value="7">Chủ nhật</option>
+          <option value="1">Thứ 2</option><option value="2">Thứ 3</option><option value="3">Thứ 4</option>
+          <option value="4">Thứ 5</option><option value="5">Thứ 6</option><option value="6">Thứ 7</option><option value="7">Chủ nhật</option>
         </select>
       </label>
       <div class="two-cols">
         <label>Bắt đầu <input id="startTime" type="time" required /></label>
         <label>Kết thúc <input id="endTime" type="time" required /></label>
       </div>
+      <div class="two-cols">
+        <label>Từ ngày <input id="startDate" type="date" /></label>
+        <label>Đến ngày <input id="endDate" type="date" /></label>
+      </div>
+      <p class="form-hint">Có thể để trống ngày bắt đầu/kết thúc nếu lịch lặp cố định chưa xác định thời hạn.</p>
       <div class="modal-actions">
         <button type="button" class="ghost" data-close-dialog="scheduleDialog">Hủy</button>
         <button type="submit" class="primary">Lưu lịch</button>
@@ -158,45 +163,25 @@
 
   <dialog id="rescheduleDialog">
     <form id="rescheduleForm" method="dialog" class="modal-form">
-      <div class="modal-head">
-        <h3>Đổi lịch buổi này</h3>
-        <button type="button" class="icon-btn" data-close-dialog="rescheduleDialog">×</button>
-      </div>
+      <div class="modal-head"><h3>Đổi lịch buổi này</h3><button type="button" class="icon-btn" data-close-dialog="rescheduleDialog">×</button></div>
       <input id="rescheduleKey" type="hidden" />
       <label>Ngày mới <input id="rescheduleDate" type="date" required /></label>
-      <div class="two-cols">
-        <label>Bắt đầu <input id="rescheduleStart" type="time" required /></label>
-        <label>Kết thúc <input id="rescheduleEnd" type="time" required /></label>
-      </div>
-      <label>Ghi chú
-        <textarea id="rescheduleNote" rows="3" placeholder="Ví dụ: Chuyển lịch theo yêu cầu học sinh"></textarea>
-      </label>
-      <div class="modal-actions">
-        <button type="button" class="ghost" data-close-dialog="rescheduleDialog">Hủy</button>
-        <button type="submit" class="primary">Đổi lịch</button>
-      </div>
+      <div class="two-cols"><label>Bắt đầu <input id="rescheduleStart" type="time" required /></label><label>Kết thúc <input id="rescheduleEnd" type="time" required /></label></div>
+      <label>Ghi chú<textarea id="rescheduleNote" rows="3" placeholder="Ví dụ: Chuyển lịch theo yêu cầu học sinh"></textarea></label>
+      <div class="modal-actions"><button type="button" class="ghost" data-close-dialog="rescheduleDialog">Hủy</button><button type="submit" class="primary">Đổi lịch</button></div>
     </form>
   </dialog>
 
   <dialog id="noteDialog">
     <form id="noteForm" method="dialog" class="modal-form">
-      <div class="modal-head">
-        <h3>Ghi chú buổi dạy</h3>
-        <button type="button" class="icon-btn" data-close-dialog="noteDialog">×</button>
-      </div>
+      <div class="modal-head"><h3>Ghi chú buổi dạy</h3><button type="button" class="icon-btn" data-close-dialog="noteDialog">×</button></div>
       <input id="noteKey" type="hidden" />
-      <label>Ghi chú
-        <textarea id="sessionNote" rows="4" placeholder="Nội dung ngắn gọn..."></textarea>
-      </label>
-      <div class="modal-actions">
-        <button type="button" class="ghost" data-close-dialog="noteDialog">Hủy</button>
-        <button type="submit" class="primary">Lưu ghi chú</button>
-      </div>
+      <label>Ghi chú<textarea id="sessionNote" rows="4" placeholder="Nội dung ngắn gọn..."></textarea></label>
+      <div class="modal-actions"><button type="button" class="ghost" data-close-dialog="noteDialog">Hủy</button><button type="submit" class="primary">Lưu ghi chú</button></div>
     </form>
   </dialog>
 
   <div id="toast" class="toast"></div>
-
   <script src="./config.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./app.js"></script>
