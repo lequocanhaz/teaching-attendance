@@ -16,6 +16,12 @@
     ["Đạt","VL10",1,"18:00","19:30"],["Đạt","VL10",5,"18:00","19:30"],
     ["Triết","VL11",3,"16:00","17:30"],["Triết","VL11",5,"15:00","16:30"]
   ];
+  const UNIVERSITY_SEED = [
+    ["Kiểm tra đánh giá trong dạy học Vật lí","",2,"13:00","15:35","A5-404A"],
+    ["Thực hành dạy học Vật lí","",3,"07:50","09:35","A5-404A"],
+    ["Quản lí Nhà nước về giáo dục","",4,"07:00","09:35","A1-102"],
+    ["Vật lí thống kê","",4,"09:40","12:15","A1-101"]
+  ];
 
   const $ = s => document.querySelector(s);
   const $$ = s => [...document.querySelectorAll(s)];
@@ -52,16 +58,18 @@
   }
 
   class LocalStore {
-    constructor(){ this.sKey="qa_schedules_v1"; this.xKey="qa_sessions_v1"; this.wKey="qa_week_events_v1"; }
+    constructor(){ this.sKey="qa_schedules_v1"; this.xKey="qa_sessions_v1"; this.wKey="qa_week_events_v1"; this.eKey="qa_schedule_exceptions_v1"; }
     rawSchedules(){ return JSON.parse(localStorage.getItem(this.sKey)||"[]"); }
     rawSessions(){ return JSON.parse(localStorage.getItem(this.xKey)||"[]"); }
     rawWeekly(){ return JSON.parse(localStorage.getItem(this.wKey)||"[]"); }
+    rawExceptions(){ return JSON.parse(localStorage.getItem(this.eKey)||"[]"); }
     saveSchedules(v){ localStorage.setItem(this.sKey,JSON.stringify(v)); }
     saveSessions(v){ localStorage.setItem(this.xKey,JSON.stringify(v)); }
     saveWeekly(v){ localStorage.setItem(this.wKey,JSON.stringify(v)); }
+    saveExceptions(v){ localStorage.setItem(this.eKey,JSON.stringify(v)); }
     async migrateLegacy(){
       const schedules=this.rawSchedules();
-      const legacy=schedules.filter(x=>x.active!==false && x.schedule_type && x.schedule_type!=="teaching");
+      const legacy=schedules.filter(x=>x.active!==false && x.schedule_type==="practicum");
       if(!legacy.length) return;
       const weekly=this.rawWeekly(); const week=mondayOf(new Date());
       for(const s of legacy){
@@ -83,6 +91,21 @@
       if(a[i].start_date && end<a[i].start_date) a[i].active=false; else a[i].end_date=end;
       this.saveSchedules(a);
     }
+    async getUniversitySchedules(){ return this.rawSchedules().filter(x=>x.active!==false && x.schedule_type==="university"); }
+    async upsertUniversitySchedule(x){
+      const a=this.rawSchedules(), i=a.findIndex(v=>v.id===x.id); const rec={...x,schedule_type:"university",active:x.active!==false};
+      if(i>=0)a[i]={...a[i],...rec}; else a.push({...rec,id:x.id||uid()}); this.saveSchedules(a);
+    }
+    async endUniversitySchedule(id,effectiveDate){
+      const a=this.rawSchedules(), i=a.findIndex(v=>v.id===id); if(i<0)return; const end=addDays(effectiveDate,-1);
+      if(a[i].start_date && end<a[i].start_date) a[i].active=false; else a[i].end_date=end; this.saveSchedules(a);
+    }
+    async getScheduleExceptions(){ return this.rawExceptions(); }
+    async upsertScheduleException(x){
+      const a=this.rawExceptions(), i=a.findIndex(v=>v.schedule_id===x.schedule_id && v.event_date===x.event_date); const rec={...x,id:x.id||uid(),updated_at:new Date().toISOString()};
+      if(i>=0)a[i]={...a[i],...rec}; else a.push(rec); this.saveExceptions(a);
+    }
+    async deleteScheduleException(scheduleId,eventDate){ this.saveExceptions(this.rawExceptions().filter(x=>!(x.schedule_id===scheduleId&&x.event_date===eventDate))); }
     async getSessions(){ return this.rawSessions(); }
     async upsertSession(x){
       const a=this.rawSessions(), i=a.findIndex(v=>v.key===x.key || (v.schedule_id===x.schedule_id && v.original_date===x.original_date));
@@ -94,10 +117,11 @@
       if(i>=0)a[i]={...a[i],...rec}; else a.push(rec); this.saveWeekly(a);
     }
     async deleteWeeklyEvent(id){ this.saveWeekly(this.rawWeekly().filter(x=>x.id!==id)); }
-    async exportData(){ return {version:3,schedules:this.rawSchedules(),sessions:this.rawSessions(),weekly_events:this.rawWeekly()}; }
+    async exportData(){ return {version:4,schedules:this.rawSchedules(),sessions:this.rawSessions(),weekly_events:this.rawWeekly(),schedule_exceptions:this.rawExceptions()}; }
     async importData(data){
       if(data.schedules)this.saveSchedules(data.schedules); if(data.sessions)this.saveSessions(data.sessions);
       if(data.weekly_events)this.saveWeekly(data.weekly_events);
+      if(data.schedule_exceptions)this.saveExceptions(data.schedule_exceptions);
     }
   }
 
@@ -117,6 +141,26 @@
       const patch=(old.start_date && end<old.start_date)?{active:false}:{end_date:end};
       const {error}=await this.client.from("schedules").update(patch).eq("id",id); if(error)throw error;
     }
+    async getUniversitySchedules(){
+      const {data,error}=await this.client.from("schedules").select("*").eq("active",true).eq("schedule_type","university").order("weekday").order("start_time");
+      if(error)throw error; return data||[];
+    }
+    async upsertUniversitySchedule(x){
+      const payload={id:x.id||undefined,schedule_type:"university",student_name:x.student_name,subject:x.subject||"",location:x.location||"",weekday:Number(x.weekday),start_time:x.start_time,end_time:x.end_time,start_date:x.start_date||null,end_date:x.end_date||null,active:x.active!==false};
+      if(!payload.id)delete payload.id; const {error}=await this.client.from("schedules").upsert(payload); if(error)throw error;
+    }
+    async endUniversitySchedule(id,effectiveDate){
+      const old=universitySchedules.find(x=>x.id===id); if(!old)return; const end=addDays(effectiveDate,-1); const patch=(old.start_date&&end<old.start_date)?{active:false}:{end_date:end};
+      const {error}=await this.client.from("schedules").update(patch).eq("id",id); if(error)throw error;
+    }
+    async getScheduleExceptions(){
+      const {data,error}=await this.client.from("schedule_exceptions").select("*").order("event_date"); if(error)throw new Error("Cần chạy lại supabase.sql bản V4 trước khi dùng: "+error.message); return data||[];
+    }
+    async upsertScheduleException(x){
+      const payload={schedule_id:x.schedule_id,event_date:x.event_date,action:x.action||"cancelled",note:x.note||""};
+      const {error}=await this.client.from("schedule_exceptions").upsert(payload,{onConflict:"user_id,schedule_id,event_date"}); if(error)throw error;
+    }
+    async deleteScheduleException(scheduleId,eventDate){ const {error}=await this.client.from("schedule_exceptions").delete().eq("schedule_id",scheduleId).eq("event_date",eventDate); if(error)throw error; }
     async getSessions(){
       const {data,error}=await this.client.from("sessions").select("*").order("session_date",{ascending:false}); if(error)throw error;
       return (data||[]).map(x=>({...x,key:`${x.schedule_id||"custom"}|${x.original_date}`}));
@@ -134,16 +178,17 @@
       if(!payload.id)delete payload.id; const {error}=await this.client.from("weekly_events").upsert(payload); if(error)throw error;
     }
     async deleteWeeklyEvent(id){ const {error}=await this.client.from("weekly_events").delete().eq("id",id); if(error)throw error; }
-    async exportData(){ return {version:3,schedules:await this.getTeachingSchedules(),sessions:await this.getSessions(),weekly_events:await this.getWeeklyEvents()}; }
+    async exportData(){ return {version:4,schedules:[...await this.getTeachingSchedules(),...await this.getUniversitySchedules()],sessions:await this.getSessions(),weekly_events:await this.getWeeklyEvents(),schedule_exceptions:await this.getScheduleExceptions()}; }
     async importData(data){
-      for(const s of (data.schedules||[])) if(!s.schedule_type||s.schedule_type==="teaching") await this.upsertTeachingSchedule({...s,id:undefined});
+      for(const s of (data.schedules||[])){ if(!s.schedule_type||s.schedule_type==="teaching") await this.upsertTeachingSchedule({...s,id:undefined}); else if(s.schedule_type==="university") await this.upsertUniversitySchedule({...s,id:undefined}); }
       for(const x of (data.sessions||[])) await this.upsertSession({...x,id:undefined});
       for(const e of (data.weekly_events||[])) await this.upsertWeeklyEvent({...e,id:undefined});
+      for(const ex of (data.schedule_exceptions||[])) await this.upsertScheduleException(ex);
     }
   }
 
   let store=new LocalStore(), supabaseClient=null, cloudMode=false, realtimeChannel=null;
-  let teachingSchedules=[], sessions=[], weeklyEvents=[];
+  let teachingSchedules=[], universitySchedules=[], sessions=[], weeklyEvents=[], scheduleExceptions=[];
   let selectedDate=currentDate(), selectedWeekStart=mondayOf(new Date()), scheduleFilter="all";
 
   async function initBackend(){
@@ -162,13 +207,14 @@
       .on("postgres_changes",{event:"*",schema:"public",table:"schedules"},refresh)
       .on("postgres_changes",{event:"*",schema:"public",table:"sessions"},refresh)
       .on("postgres_changes",{event:"*",schema:"public",table:"weekly_events"},refresh)
+      .on("postgres_changes",{event:"*",schema:"public",table:"schedule_exceptions"},refresh)
       .subscribe();
   }
 
   async function loadAll(seed=true){
     await store.migrateLegacy();
-    teachingSchedules=await store.getTeachingSchedules(); sessions=await store.getSessions(); weeklyEvents=await store.getWeeklyEvents();
-    if(seed && !teachingSchedules.length){ await seedTeaching(true); teachingSchedules=await store.getTeachingSchedules(); }
+    teachingSchedules=await store.getTeachingSchedules(); universitySchedules=await store.getUniversitySchedules(); sessions=await store.getSessions(); weeklyEvents=await store.getWeeklyEvents(); scheduleExceptions=await store.getScheduleExceptions();
+    if(seed){ if(!teachingSchedules.length) await seedTeaching(true); if(!universitySchedules.length) await seedUniversity(true); teachingSchedules=await store.getTeachingSchedules(); universitySchedules=await store.getUniversitySchedules(); }
     renderAll();
   }
 
@@ -183,6 +229,12 @@
     if(!silent)toast(added?`Đã thêm ${added} lịch dạy mẫu`:"Lịch dạy mẫu đã có đủ");
   }
 
+  async function seedUniversity(silent=false){
+    const current=await store.getUniversitySchedules(); const signatures=new Set(current.map(s=>`${s.student_name}|${s.weekday}|${String(s.start_time).slice(0,5)}`)); let added=0; const effective=mondayOf(new Date());
+    for(const [student_name,subject,wd,start_time,end_time,location] of UNIVERSITY_SEED){ const sig=`${student_name}|${wd}|${start_time}`; if(signatures.has(sig))continue; await store.upsertUniversitySchedule({id:uid(),student_name,subject,location,weekday:wd,start_time,end_time,start_date:effective,end_date:null,active:true}); added++; }
+    if(!silent)toast(added?`Đã thêm ${added} môn học cố định`:"Lịch học mẫu đã có đủ");
+  }
+
   function teachingForDate(date){
     const wd=weekday(date);
     const movedFrom=new Set(sessions.filter(x=>x.original_date===date && x.session_date!==date).map(x=>x.schedule_id));
@@ -195,8 +247,15 @@
     return [...regular,...movedIn];
   }
 
-  function eventsForDate(date){ return weeklyEvents.filter(e=>e.event_date===date).map(e=>({...e,type:e.event_type})); }
-  function itemsForDate(date){ return [...teachingForDate(date),...eventsForDate(date)].sort((a,b)=>String(a.start_time).localeCompare(String(b.start_time))); }
+  function universityForDate(date){
+    const wd=weekday(date);
+    return universitySchedules.filter(s=>Number(s.weekday)===wd && inRange(s,date) && !scheduleExceptions.some(ex=>ex.schedule_id===s.id&&ex.event_date===date&&ex.action==="cancelled")).map(s=>({id:`rec-${s.id}-${date}`,recurring_id:s.id,type:"university",event_type:"university",event_date:date,title:s.student_name,details:s.subject||"",location:s.location||"",start_time:s.start_time,end_time:s.end_time,note:"",is_recurring:true}));
+  }
+  function eventsForDate(date){
+    const recurring=universitySchedules.filter(s=>Number(s.weekday)===weekday(date)&&inRange(s,date));
+    return weeklyEvents.filter(e=>e.event_date===date).filter(e=>!(e.event_type==="university"&&recurring.some(s=>s.student_name===e.title&&String(s.start_time).slice(0,5)===String(e.start_time).slice(0,5)))).map(e=>({...e,type:e.event_type,is_recurring:false}));
+  }
+  function itemsForDate(date){ return [...teachingForDate(date),...universityForDate(date),...eventsForDate(date)].sort((a,b)=>String(a.start_time).localeCompare(String(b.start_time))); }
   function getTeachingOccurrence(key){
     let rec=sessions.find(x=>(x.key||`${x.schedule_id}|${x.original_date}`)===key); if(rec)return {...rec,key,type:"teaching"};
     const [sid,date]=key.split("|"); const s=teachingSchedules.find(x=>x.id===sid); if(!s)return null;
@@ -231,7 +290,7 @@
         ${isTeaching?`<div class="session-actions">
           ${["taught","student_absent","teacher_absent","makeup"].map(st=>`<button class="status-btn ${x.status===st?"active":""}" data-status="${st}" data-key="${esc(x.key)}">${STATUS[st]}</button>`).join("")}
           <button class="ghost" data-reschedule="${esc(x.key)}">Đổi lịch buổi này</button><button class="ghost" data-note="${esc(x.key)}">Ghi chú</button><button class="ghost" data-status="cancelled" data-key="${esc(x.key)}">Hủy buổi</button>
-        </div>`:`<div class="session-actions"><button class="ghost" data-edit-event="${esc(x.id)}">Sửa lịch này</button></div>`}
+        </div>`: x.is_recurring ? `<div class="session-actions"><button class="ghost" data-skip-university="${esc(x.recurring_id)}" data-event-date="${esc(selectedDate)}">Bỏ lịch tuần này</button></div>` : `<div class="session-actions"><button class="ghost" data-edit-event="${esc(x.id)}">Sửa lịch này</button></div>`}
       </article>`;
     }).join(""):`<div class="empty">Không có lịch nào trong ngày này.</div>`;
   }
@@ -256,13 +315,16 @@
           ${date===today?`<div style="margin-top:8px"><span class="time-pill ${ts.key}">${ts.label}</span></div>`:""}
           <div class="card-actions">
             ${teach&&x.schedule_id?`<button class="ghost" data-edit-teaching="${esc(x.schedule_id)}" data-effective-date="${esc(date)}">Sửa cố định</button><button class="ghost" data-end-teaching="${esc(x.schedule_id)}" data-effective-date="${esc(date)}">Dừng từ ngày này</button>`:""}
-            ${!teach?`<button class="ghost" data-edit-event="${esc(x.id)}">Sửa</button><button class="ghost" data-delete-event="${esc(x.id)}">Xóa</button>`:""}
+            ${x.type==="university"&&x.is_recurring?`<button class="ghost" data-skip-university="${esc(x.recurring_id)}" data-event-date="${esc(date)}">Bỏ tuần này</button><button class="ghost" data-edit-university="${esc(x.recurring_id)}" data-effective-date="${esc(date)}">Sửa cố định</button><button class="ghost" data-end-university="${esc(x.recurring_id)}" data-effective-date="${esc(date)}">Dừng từ ngày này</button>`:""}
+            ${!teach&&!x.is_recurring?`<button class="ghost" data-edit-event="${esc(x.id)}">Sửa</button><button class="ghost" data-delete-event="${esc(x.id)}">Xóa</button>`:""}
           </div>
         </div>`;
       }).join(""):`<div class="muted small-text">Trống</div>`;
       html+="</div>";
     }
     $("#weeklyGrid").innerHTML=html;
+    const weekEnd=addDays(selectedWeekStart,6); const hidden=scheduleExceptions.filter(ex=>ex.action==="cancelled"&&ex.event_date>=selectedWeekStart&&ex.event_date<=weekEnd).map(ex=>({...ex,s:universitySchedules.find(s=>s.id===ex.schedule_id)})).filter(x=>x.s);
+    const box=$("#hiddenExceptions"); if(box) box.innerHTML=hidden.length?`<div class="hidden-exceptions"><strong>Đã bỏ ${hidden.length} lịch học trong tuần:</strong> ${hidden.map(x=>`<button class="restore-chip" data-restore-university="${esc(x.schedule_id)}" data-event-date="${esc(x.event_date)}">${shortDate(x.event_date)} · ${esc(x.s.student_name)} ↩</button>`).join(" ")}</div>`:"";
   }
 
   function renderHistory(){
@@ -318,16 +380,29 @@
     teachingSchedules=await store.getTeachingSchedules();$("#teachingDialog").close();renderAll();markSaved();toast("Đã lưu lịch dạy và giữ lịch sử cũ");
   };
 
+  $("#addUniversityBtn").onclick=()=>openUniversityDialog();
+  function openUniversityDialog(s=null,effectiveDate=selectedWeekStart){
+    $("#universityForm").reset(); $("#universityId").value=s?.id||""; $("#universityDialogTitle").textContent=s?"Sửa môn học cố định":"Thêm môn học cố định";
+    if(s){$("#universityTitle").value=s.student_name;$("#universityDetails").value=s.subject||"";$("#universityLocation").value=s.location||"";$("#universityWeekday").value=s.weekday;$("#universityStart").value=String(s.start_time).slice(0,5);$("#universityEnd").value=String(s.end_time).slice(0,5);}
+    $("#universityEffectiveDate").value=effectiveDate; $("#universityDialog").showModal();
+  }
+  $("#universityForm").onsubmit=async e=>{
+    e.preventDefault(); const id=$("#universityId").value,effective=$("#universityEffectiveDate").value; const values={student_name:$("#universityTitle").value.trim(),subject:$("#universityDetails").value.trim(),location:$("#universityLocation").value.trim(),weekday:Number($("#universityWeekday").value),start_time:$("#universityStart").value,end_time:$("#universityEnd").value,start_date:effective,end_date:null,active:true};
+    if(values.end_time<=values.start_time)return toast("Giờ kết thúc phải sau giờ bắt đầu");
+    if(id){ const old=universitySchedules.find(x=>x.id===id); if(!old)return; if(old.start_date===effective) await store.upsertUniversitySchedule({...old,...values,id}); else { await store.endUniversitySchedule(id,effective); await store.upsertUniversitySchedule({...values,id:uid()}); } } else await store.upsertUniversitySchedule({...values,id:uid()});
+    universitySchedules=await store.getUniversitySchedules(); $("#universityDialog").close(); renderAll(); markSaved(); toast("Đã lưu môn học cố định cho các tuần sau");
+  };
+
   $("#addEventBtn").onclick=()=>openEventDialog(null,selectedWeekStart);
   function openEventDialog(ev=null,defaultDate=selectedWeekStart){
-    $("#eventForm").reset();$("#eventId").value=ev?.id||"";$("#eventDialogTitle").textContent=ev?"Sửa lịch trong tuần":"Thêm lịch trong tuần";
+    $("#eventForm").reset();$("#eventId").value=ev?.id||"";$("#eventDialogTitle").textContent=ev?"Sửa lịch phát sinh":"Thêm lịch phát sinh / KT-TT";
     if(ev){$("#eventType").value=ev.event_type;$("#eventTitle").value=ev.title;$("#eventDetails").value=ev.details||"";$("#eventLocation").value=ev.location||"";$("#eventDate").value=ev.event_date;$("#eventStart").value=String(ev.start_time).slice(0,5);$("#eventEnd").value=String(ev.end_time).slice(0,5);$("#eventNote").value=ev.note||"";}
     else {$("#eventDate").value=defaultDate;$("#eventStart").value="07:00";$("#eventEnd").value="08:00";}
     $("#eventDialog").showModal();
   }
   $("#eventForm").onsubmit=async e=>{
     e.preventDefault(); const rec={id:$("#eventId").value||uid(),event_type:$("#eventType").value,event_date:$("#eventDate").value,title:$("#eventTitle").value.trim(),details:$("#eventDetails").value.trim(),location:$("#eventLocation").value.trim(),start_time:$("#eventStart").value,end_time:$("#eventEnd").value,note:$("#eventNote").value.trim()};
-    if(rec.end_time<=rec.start_time)return toast("Giờ kết thúc phải sau giờ bắt đầu"); await saveWeeklyEvent(rec);$("#eventDialog").close();toast("Đã lưu vào tuần này");
+    if(rec.end_time<=rec.start_time)return toast("Giờ kết thúc phải sau giờ bắt đầu"); await saveWeeklyEvent(rec);$("#eventDialog").close();toast("Đã lưu lịch theo ngày");
   };
 
   $("#copyPrevWeekBtn").onclick=async()=>{
@@ -344,21 +419,26 @@
     if(st&&key){const x=getTeachingOccurrence(key);if(!x)return;x.status=st;await saveTeachingSession(x);toast(STATUS[st]);return;}
     if(e.target.dataset.reschedule){const x=getTeachingOccurrence(e.target.dataset.reschedule);if(!x)return;$("#rescheduleKey").value=x.key;$("#rescheduleDate").value=x.session_date;$("#rescheduleStart").value=String(x.start_time).slice(0,5);$("#rescheduleEnd").value=String(x.end_time).slice(0,5);$("#rescheduleNote").value=x.note||"";$("#rescheduleDialog").showModal();return;}
     if(e.target.dataset.note){const x=getTeachingOccurrence(e.target.dataset.note);if(!x)return;$("#noteKey").value=x.key;$("#sessionNote").value=x.note||"";$("#noteDialog").showModal();return;}
-    if(e.target.dataset.editEvent){const ev=weeklyEvents.find(x=>x.id===e.target.dataset.editEvent);if(ev)openEventDialog(ev);}
+    if(e.target.dataset.editEvent){const ev=weeklyEvents.find(x=>x.id===e.target.dataset.editEvent);if(ev)openEventDialog(ev);return;}
+    if(e.target.dataset.skipUniversity){const sid=e.target.dataset.skipUniversity,date=e.target.dataset.eventDate||selectedDate;const s=universitySchedules.find(x=>x.id===sid);if(s&&confirm(`Bỏ ${s.student_name} khỏi tuần có ngày ${shortDate(date)}? Các tuần sau vẫn giữ lịch.`)){await store.upsertScheduleException({schedule_id:sid,event_date:date,action:"cancelled",note:"Bỏ lịch tuần này"});scheduleExceptions=await store.getScheduleExceptions();renderAll();markSaved();toast("Đã bỏ lịch riêng tuần này");}}
   };
   $("#weeklyGrid").onclick=async e=>{
+    if(e.target.dataset.skipUniversity){const sid=e.target.dataset.skipUniversity,date=e.target.dataset.eventDate;const s=universitySchedules.find(x=>x.id===sid);if(s&&confirm(`Bỏ ${s.student_name} riêng tuần này? Các tuần sau vẫn giữ lịch.`)){await store.upsertScheduleException({schedule_id:sid,event_date:date,action:"cancelled",note:"Bỏ lịch tuần này"});scheduleExceptions=await store.getScheduleExceptions();renderAll();markSaved();toast("Đã bỏ lịch riêng tuần này");}return;}
+    if(e.target.dataset.editUniversity){const s=universitySchedules.find(x=>x.id===e.target.dataset.editUniversity);if(s)openUniversityDialog(s,e.target.dataset.effectiveDate||selectedWeekStart);return;}
+    if(e.target.dataset.endUniversity){const s=universitySchedules.find(x=>x.id===e.target.dataset.endUniversity),effective=e.target.dataset.effectiveDate||selectedWeekStart;if(s&&confirm(`Dừng môn ${s.student_name} từ ${shortDate(effective)}? Các tuần trước vẫn được giữ.`)){await store.endUniversitySchedule(s.id,effective);universitySchedules=await store.getUniversitySchedules();renderAll();markSaved();toast("Đã dừng môn học từ ngày đã chọn");}return;}
     if(e.target.dataset.editEvent){const ev=weeklyEvents.find(x=>x.id===e.target.dataset.editEvent);if(ev)openEventDialog(ev);return;}
     if(e.target.dataset.deleteEvent){const ev=weeklyEvents.find(x=>x.id===e.target.dataset.deleteEvent);if(ev&&confirm(`Xóa "${ev.title}" khỏi tuần này?`)){await store.deleteWeeklyEvent(ev.id);weeklyEvents=await store.getWeeklyEvents();renderAll();markSaved();toast("Đã xóa lịch");}return;}
     if(e.target.dataset.editTeaching){const s=teachingSchedules.find(x=>x.id===e.target.dataset.editTeaching);if(s)openTeachingDialog(s,e.target.dataset.effectiveDate||currentDate());return;}
     if(e.target.dataset.endTeaching){const s=teachingSchedules.find(x=>x.id===e.target.dataset.endTeaching);const effective=e.target.dataset.effectiveDate||currentDate();if(s&&confirm(`Dừng lịch ${s.student_name} · ${s.subject} từ ${shortDate(effective)}? Lịch các tuần trước vẫn được giữ.`)){await store.endTeachingSchedule(s.id,effective);teachingSchedules=await store.getTeachingSchedules();renderAll();markSaved();toast("Đã kết thúc lịch từ ngày đã chọn");}}
   };
+  $("#hiddenExceptions").onclick=async e=>{ if(e.target.dataset.restoreUniversity){await store.deleteScheduleException(e.target.dataset.restoreUniversity,e.target.dataset.eventDate);scheduleExceptions=await store.getScheduleExceptions();renderAll();markSaved();toast("Đã khôi phục lịch học tuần này");} };
   $("#rescheduleForm").onsubmit=async e=>{e.preventDefault();const x=getTeachingOccurrence($("#rescheduleKey").value);if(!x)return;x.session_date=$("#rescheduleDate").value;x.start_time=$("#rescheduleStart").value;x.end_time=$("#rescheduleEnd").value;x.note=$("#rescheduleNote").value.trim();await saveTeachingSession(x);$("#rescheduleDialog").close();toast("Đã đổi riêng buổi này");};
   $("#noteForm").onsubmit=async e=>{e.preventDefault();const x=getTeachingOccurrence($("#noteKey").value);if(!x)return;x.note=$("#sessionNote").value.trim();await saveTeachingSession(x);$("#noteDialog").close();toast("Đã lưu ghi chú");};
   $("#historyMonth").onchange=renderHistory;$("#historyStatus").onchange=renderHistory;
 
   $("#exportBtn").onclick=async()=>{const data=await store.exportData();const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`teaching-attendance-backup-${currentDate()}.json`;a.click();URL.revokeObjectURL(a.href);};
   $("#importInput").onchange=async e=>{const file=e.target.files[0];if(!file)return;try{const data=JSON.parse(await file.text());await store.importData(data);await loadAll(false);toast("Đã nhập dữ liệu");}catch(err){toast("File JSON không hợp lệ: "+err.message);}e.target.value="";};
-  $("#seedBtn").onclick=async()=>{await seedTeaching(false);teachingSchedules=await store.getTeachingSchedules();renderAll();markSaved();};
+  $("#seedBtn").onclick=async()=>{await seedTeaching(false);await seedUniversity(false);teachingSchedules=await store.getTeachingSchedules();universitySchedules=await store.getUniversitySchedules();renderAll();markSaved();};
   $$('[data-close-dialog]').forEach(b=>b.onclick=()=>$("#"+b.dataset.closeDialog).close());
 
   async function start(){
