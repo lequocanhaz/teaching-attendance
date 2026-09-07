@@ -1,6 +1,6 @@
--- Teaching Attendance V3
+-- Teaching Attendance V4
 -- Chạy toàn bộ file này trong Supabase > SQL Editor.
--- V3 lưu lịch học/kiến tập theo NGÀY CỤ THỂ để mỗi tuần có thể khác nhau và vẫn xem lại tuần cũ.
+-- V4: Dạy thêm và môn học có thể lặp cố định; từng tuần có ngoại lệ để bỏ lịch mà không ảnh hưởng các tuần sau. Kiến tập/thực tập vẫn lưu theo ngày cụ thể.
 
 create extension if not exists pgcrypto;
 
@@ -20,6 +20,7 @@ create table if not exists public.schedules (
   created_at timestamptz not null default now()
 );
 
+-- Tương thích nếu đã chạy bản SQL cũ.
 alter table public.schedules add column if not exists schedule_type text not null default 'teaching';
 alter table public.schedules add column if not exists location text not null default '';
 alter table public.schedules add column if not exists start_date date;
@@ -57,10 +58,24 @@ create table if not exists public.weekly_events (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.schedule_exceptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid(),
+  schedule_id uuid not null references public.schedules(id) on delete cascade,
+  event_date date not null,
+  action text not null default 'cancelled' check (action in ('cancelled')),
+  note text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, schedule_id, event_date)
+);
+
 alter table public.schedules enable row level security;
 alter table public.sessions enable row level security;
 alter table public.weekly_events enable row level security;
+alter table public.schedule_exceptions enable row level security;
 
+-- Schedules RLS
 drop policy if exists "own schedules select" on public.schedules;
 drop policy if exists "own schedules insert" on public.schedules;
 drop policy if exists "own schedules update" on public.schedules;
@@ -70,6 +85,7 @@ create policy "own schedules insert" on public.schedules for insert with check (
 create policy "own schedules update" on public.schedules for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own schedules delete" on public.schedules for delete using (auth.uid() = user_id);
 
+-- Sessions RLS
 drop policy if exists "own sessions select" on public.sessions;
 drop policy if exists "own sessions insert" on public.sessions;
 drop policy if exists "own sessions update" on public.sessions;
@@ -79,6 +95,7 @@ create policy "own sessions insert" on public.sessions for insert with check (au
 create policy "own sessions update" on public.sessions for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own sessions delete" on public.sessions for delete using (auth.uid() = user_id);
 
+-- Weekly events RLS
 drop policy if exists "own weekly events select" on public.weekly_events;
 drop policy if exists "own weekly events insert" on public.weekly_events;
 drop policy if exists "own weekly events update" on public.weekly_events;
@@ -88,10 +105,22 @@ create policy "own weekly events insert" on public.weekly_events for insert with
 create policy "own weekly events update" on public.weekly_events for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "own weekly events delete" on public.weekly_events for delete using (auth.uid() = user_id);
 
+-- Schedule exceptions RLS
+drop policy if exists "own schedule exceptions select" on public.schedule_exceptions;
+drop policy if exists "own schedule exceptions insert" on public.schedule_exceptions;
+drop policy if exists "own schedule exceptions update" on public.schedule_exceptions;
+drop policy if exists "own schedule exceptions delete" on public.schedule_exceptions;
+create policy "own schedule exceptions select" on public.schedule_exceptions for select using (auth.uid() = user_id);
+create policy "own schedule exceptions insert" on public.schedule_exceptions for insert with check (auth.uid() = user_id);
+create policy "own schedule exceptions update" on public.schedule_exceptions for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "own schedule exceptions delete" on public.schedule_exceptions for delete using (auth.uid() = user_id);
+
 create index if not exists idx_schedules_user_weekday on public.schedules(user_id, weekday);
 create index if not exists idx_sessions_user_date on public.sessions(user_id, session_date);
 create index if not exists idx_weekly_events_user_date on public.weekly_events(user_id, event_date);
+create index if not exists idx_schedule_exceptions_user_date on public.schedule_exceptions(user_id, event_date);
 
+-- Bật Supabase Realtime cho các bảng nếu chưa có trong publication.
 do $$
 begin
   if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='schedules') then
@@ -102,5 +131,8 @@ begin
   end if;
   if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='weekly_events') then
     alter publication supabase_realtime add table public.weekly_events;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='schedule_exceptions') then
+    alter publication supabase_realtime add table public.schedule_exceptions;
   end if;
 end $$;
