@@ -1,41 +1,35 @@
-# Teaching Attendance V3 – Lịch cá nhân & chấm công
+# Teaching Attendance V4 – Lịch cá nhân & chấm công
 
-Bản V3 tập trung vào sử dụng lâu dài:
+## Cách hoạt động
 
-- Đồng hồ thời gian thực ngay trên web.
-- Hiển thị trạng thái `Đang diễn ra / Sắp tới / Đã qua` theo giờ hiện tại.
-- Lịch dạy thêm là lịch cố định và có chấm công.
-- Lịch học đại học và kiến tập/thực tập được lưu theo **ngày cụ thể**, vì vậy mỗi tuần có thể khác nhau.
-- Có nút chuyển tuần và xem lại mọi tuần cũ.
-- Có nút `Sao chép lịch học/KT từ tuần trước` để tạo tuần mới nhanh rồi sửa các buổi thay đổi.
-- Khi sửa lịch dạy cố định, hệ thống tạo phiên bản mới từ ngày áp dụng để không làm sai lịch sử cũ.
-- Supabase hỗ trợ lưu online và đồng bộ thay đổi giữa nhiều thiết bị.
+- **Dạy thêm**: lịch cố định lặp hằng tuần, có chấm công và có thể đổi riêng từng buổi.
+- **Lịch học đại học**: môn học cố định lặp ở các tuần sau. Nếu một tuần không học, chọn **Bỏ tuần này**; tuần sau vẫn còn.
+- **Kiến tập / Thực tập**: thêm theo ngày cụ thể khi có lịch.
+- **Lịch học phát sinh / đổi buổi**: có thể thêm theo ngày cụ thể.
+- **Lịch sử tuần**: quay về tuần cũ để xem đúng lịch cũ; các môn được sửa cố định dùng ngày hiệu lực nên không làm thay đổi các tuần trước.
+- **Thời gian thực**: đồng hồ và trạng thái Sắp tới / Đang diễn ra / Đã qua.
 
-## Cách dùng lịch tuần
+## Lịch mẫu
 
-1. Vào `Lịch tuần`.
-2. Dùng mũi tên để chuyển tuần hoặc chọn một ngày ở ô bên phải.
-3. `+ Lịch học / KT-TT` để thêm lịch riêng của đúng tuần đó.
-4. Khi sang tuần mới, có thể bấm `Sao chép lịch học/KT từ tuần trước`, sau đó sửa/xóa/thêm các buổi khác.
-5. Tuần cũ không bị ghi đè; quay lại tuần cũ bằng mũi tên để xem lịch sử.
+### Dạy thêm
+- Nam – VL12: T3, T7, CN · 09:00–10:30
+- Đức – VL12: T3, T5, T7 · 19:30–21:00
+- Phát – VL10: T6 · 09:30–11:00; CN · 14:00–15:30
+- Đạt – VL10: T2, T6 · 18:00–19:30
+- Triết – VL11: T4 · 16:00–17:30; T6 · 15:00–16:30
 
-## Supabase V3
+### Môn học đại học
+- T3 13:00–15:35 — Kiểm tra đánh giá trong dạy học Vật lí — A5-404A
+- T4 07:50–09:35 — Thực hành dạy học Vật lí — A5-404A
+- T5 07:00–09:35 — Quản lí Nhà nước về giáo dục — A1-102
+- T5 09:40–12:15 — Vật lí thống kê — A1-101
 
-Nếu chưa dùng Supabase thì web chạy ngay bằng localStorage.
+## Supabase
 
-Nếu đã hoặc sắp kết nối Supabase:
+Nếu đã dùng Supabase ở bản cũ, hãy mở **SQL Editor**, dán toàn bộ `supabase.sql` bản V4 và Run lại. File này tạo thêm bảng `schedule_exceptions` dùng để lưu các môn học bị bỏ riêng ở từng tuần.
 
-1. Mở Supabase > SQL Editor.
-2. Chạy **toàn bộ** file `supabase.sql` bản V3.
-3. Trong `config.js` điền Project URL và Publishable/Anon key.
-4. Không bao giờ đưa `service_role` hoặc Secret key vào GitHub.
+Sau đó giữ nguyên `config.js` với Project URL và Publishable/Anon key. Không dùng `service_role` key ở frontend.
 
-V3 tạo thêm bảng `weekly_events` để lưu lịch học/kiến tập theo ngày và bật Realtime cho các bảng.
+## Sao lưu
 
-## Backup
-
-Vào `Cài đặt > Xuất JSON`. File backup V3 chứa:
-
-- `schedules`: lịch dạy cố định và các phiên bản lịch cũ.
-- `sessions`: lịch sử chấm công/đổi buổi dạy.
-- `weekly_events`: lịch học và kiến tập/thực tập từng tuần.
+Cài đặt → Xuất JSON. Bản sao lưu V4 gồm lịch dạy, môn học cố định, lịch theo ngày, ngoại lệ từng tuần và lịch sử chấm công.
