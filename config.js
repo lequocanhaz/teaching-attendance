@@ -4,3 +4,11 @@ window.APP_CONFIG = {
   SUPABASE_URL: "",
   SUPABASE_ANON_KEY: ""
 };
+
+window.addEventListener("DOMContentLoaded", () => {
+  if (document.querySelector('script[data-history-by-student]')) return;
+  const script = document.createElement("script");
+  script.src = "./history-by-student.js?v=1";
+  script.dataset.historyByStudent = "true";
+  document.body.appendChild(script);
+});
